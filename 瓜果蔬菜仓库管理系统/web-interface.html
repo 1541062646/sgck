@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>智能仓储管理系统</title>
+    <style>
+        :root {
+            --warning-color: #ff4757;
+            --safe-color: #2ed573;
+            --primary-color: #3498db;
+        }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            padding: 20px;
+            background: #f5f7fa;
+            margin: 0;
+            min-height: 100vh;
+        }
+        h1 {
+            grid-column: 1 / -1;
+            text-align: center;
+            color: #2c3e50;
+            margin: 20px 0;
+        }
+        .control-panel {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .config-section {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+        }
+        .sensor-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+            position: relative;
+            text-align: center;
+        }
+        .warning {
+            animation: pulse 1s infinite;
+            border: 2px solid var(--warning-color);
+        }
+        @keyframes pulse {
+            0% { opacity: 0.8; }
+            50% { opacity: 1; }
+            100% { opacity: 0.8; }
+        }
+        .value {
+            font-size: 36px;
+            font-weight: 600;
+            margin: 15px 0;
+        }
+        .unit {
+            color: #666;
+            font-size: 16px;
+        }
+        button {
+            padding: 10px 20px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        input[type="number"], input[type="text"], input[type="password"], input[type="date"] {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 5px;
+            width: 120px;
+        }
+        #analysisResult {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
+        .threshold-item {
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .sensor-grid {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        #connectionStatus {
+            padding: 10px;
+            border-radius: 20px;
+            text-align: center;
+            background: #e74c3c;
+            color: white;
+            margin-top: 10px;
+        }
+        .connected {
+            background: #2ecc71 !important;
+        }
+    </style>
+</head>
+<body>
+    <h1>🍎 智能水果仓储管理系统 🍌</h1>
+
+    <div class="control-panel">
+        <div class="config-section">
+            <h2>⚙️ 系统设置</h2>
+            <button id="connectBtn">🔗 连接传感器设备</button>
+            <div id="connectionStatus">未连接</div>
+            <div style="margin-top: 20px;">
+                <input type="password" id="apiKey" placeholder="请输入阿里百炼API密钥" style="width: 300px;">
+                <button onclick="saveApiKey()">保存密钥</button>
+            </div>
+        </div>
+
+        <div class="config-section">
+            <h2>⚠️ 预警参数设置</h2>
+            <div class="threshold-item">
+                <span>🌡️ 温度(°C):</span>
+                <input type="number" id="tempMin" placeholder="最低值">
+                <input type="number" id="tempMax" placeholder="最高值">
+            </div>
+            <div class="threshold-item">
+                <span>💧 湿度(%RH):</span>
+                <input type="number" id="humiMin" placeholder="最低值">
+                <input type="number" id="humiMax" placeholder="最高值">
+            </div>
+            <div class="threshold-item">
+                <span>⚠️ CO浓度:</span>
+                <input type="number" id="mq7Max" placeholder="最高值">
+            </div>
+            <div class="threshold-item">
+                <span>☁️ CO₂浓度:</span>
+                <input type="number" id="mq135Max" placeholder="最高值">
+            </div>
+            <div class="threshold-item">
+                <span>💡 光照(lux):</span>
+                <input type="number" id="luxMax" placeholder="最高值">
+            </div>
+            <button onclick="saveThresholds()" style="margin-top: 15px;">💾 保存预警设置</button>
+        </div>
+    </div>
+
+    <div class="sensor-grid">
+        <div class="sensor-card">
+            <h2>🌡️ 实时温度</h2>
+            <div class="value temp" id="temperature">--.-</div>
+            <div class="unit">°C</div>
+        </div>
+        <div class="sensor-card">
+            <h2>💧 实时湿度</h2>
+            <div class="value humi" id="humidity">--.-</div>
+            <div class="unit">% RH</div>
+        </div>
+        <div class="sensor-card">
+            <h2>⚠️ CO浓度</h2>
+            <div class="value gas" id="mq7">----</div>
+            <div class="unit">RAW ADC</div>
+        </div>
+        <div class="sensor-card">
+            <h2>☁️ CO₂浓度</h2>
+            <div class="value gas" id="mq135">----</div>
+            <div class="unit">RAW ADC</div>
+        </div>
+        <div class="sensor-card">
+            <h2>💡 光照强度</h2>
+            <div class="value light" id="lux">--.-</div>
+            <div class="unit">lux</div>
+        </div>
+    </div>
+
+    <div id="analysisResult">
+        <h2>📊 实时保鲜分析报告</h2>
+        <div id="analysisContent">等待首次分析数据...</div>
+    </div>
+
+    <script>
+        // 系统状态变量
+        let port = null;
+        let sensorData = {};
+        const decoder = new TextDecoder();
+        let analysisInterval = null;
+
+        // 初始化配置
+        let thresholds = JSON.parse(localStorage.getItem('thresholds')) || {
+            temp: { min: 10, max: 25 },
+            humi: { min: 40, max: 70 },
+            mq7: { max: 500 },
+            mq135: { max: 800 },
+            lux: { max: 1000 }
+        };
+
+        // 初始化页面
+        function initSettings() {
+            // 预警设置
+            document.getElementById('tempMin').value = thresholds.temp.min;
+            document.getElementById('tempMax').value = thresholds.temp.max;
+            document.getElementById('humiMin').value = thresholds.humi.min;
+            document.getElementById('humiMax').value = thresholds.humi.max;
+            document.getElementById('mq7Max').value = thresholds.mq7.max;
+            document.getElementById('mq135Max').value = thresholds.mq135.max;
+            document.getElementById('luxMax').value = thresholds.lux.max;
+            
+            // API密钥
+            document.getElementById('apiKey').value = localStorage.getItem('apiKey') || '';
+            
+            // 启动自动分析
+            if (!analysisInterval) {
+                analysisInterval = setInterval(performAnalysis, 300000); // 每5分钟分析一次
+            }
+        }
+
+        // 保存预警设置
+        function saveThresholds() {
+            thresholds = {
+                temp: {
+                    min: parseInt(document.getElementById('tempMin').value) || 0,
+                    max: parseInt(document.getElementById('tempMax').value) || 50
+                },
+                humi: {
+                    min: parseInt(document.getElementById('humiMin').value) || 0,
+                    max: parseInt(document.getElementById('humiMax').value) || 100
+                },
+                mq7: { max: parseInt(document.getElementById('mq7Max').value) || 1000 },
+                mq135: { max: parseInt(document.getElementById('mq135Max').value) || 1500 },
+                lux: { max: parseInt(document.getElementById('luxMax').value) || 2000 }
+            };
+            localStorage.setItem('thresholds', JSON.stringify(thresholds));
+            checkThresholds();
+            alert('预警设置已保存！');
+        }
+
+        // 保存API密钥
+        function saveApiKey() {
+            const apiKey = document.getElementById('apiKey').value;
+            localStorage.setItem('apiKey', apiKey);
+            alert('API密钥已保存！');
+        }
+
+        // 连接传感器
+        async function connectSerial() {
+            try {
+                port = await navigator.serial.requestPort();
+                await port.open({ baudRate: 115200 });
+                updateConnectionStatus(true);
+                
+                const reader = port.readable.getReader();
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    const dataString = decoder.decode(value);
+                    processSensorData(dataString);
+                }
+            } catch (error) {
+                updateConnectionStatus(false);
+                console.error('连接错误:', error);
+                alert('传感器连接失败，请重试！');
+            }
+        }
+
+        // 处理传感器数据
+        function processSensorData(data) {
+            const sensorMap = {
+                'TEMP': 'temperature',
+                'HUMI': 'humidity',
+                'MQ7': 'mq7',
+                'MQ135': 'mq135',
+                'LUX': 'lux'
+            };
+
+            data.split(',').forEach(pair => {
+                const [key, value] = pair.split(':');
+                if (sensorMap[key]) {
+                    const numValue = parseFloat(value);
+                    sensorData[key] = numValue;
+                    const element = document.getElementById(sensorMap[key]);
+                    element.textContent = key.startsWith('MQ') ? Math.round(numValue) : numValue.toFixed(1);
+                }
+            });
+
+            checkThresholds();
+        }
+
+        // 检查阈值预警
+        function checkThresholds() {
+            document.querySelectorAll('.sensor-card').forEach(card => card.classList.remove('warning'));
+
+            if (sensorData.TEMP < thresholds.temp.min || sensorData.TEMP > thresholds.temp.max) {
+                document.getElementById('temperature').parentElement.classList.add('warning');
+            }
+            if (sensorData.HUMI < thresholds.humi.min || sensorData.HUMI > thresholds.humi.max) {
+                document.getElementById('humidity').parentElement.classList.add('warning');
+            }
+            if (sensorData.MQ7 > thresholds.mq7.max) {
+                document.getElementById('mq7').parentElement.classList.add('warning');
+            }
+            if (sensorData.MQ135 > thresholds.mq135.max) {
+                document.getElementById('mq135').parentElement.classList.add('warning');
+            }
+            if (sensorData.LUX > thresholds.lux.max) {
+                document.getElementById('lux').parentElement.classList.add('warning');
+            }
+        }
+
+        // 执行智能分析
+        async function performAnalysis() {
+            const apiKey = localStorage.getItem('apiKey');
+            if (!apiKey) {
+                alert('请先设置阿里百炼API密钥！');
+                return;
+            }
+
+            const prompt = `作为仓储管理专家，请根据以下实时数据给出专业分析：
+            
+            环境参数：
+            - 温度：${sensorData.TEMP || 0}°C 
+            - 湿度：${sensorData.HUMI || 0}% RH
+            - CO浓度：${sensorData.MQ7 || 0}
+            - CO₂浓度：${sensorData.MQ135 || 0}
+            - 光照强度：${sensorData.LUX || 0}lux
+
+            仓储要求：
+            - 最佳温度范围：${thresholds.temp.min}-${thresholds.temp.max}°C
+            - 最佳湿度范围：${thresholds.humi.min}-${thresholds.humi.max}% RH
+
+            请分析：
+            1. 当前环境对水果糖分流失的影响
+            2. 具体保鲜建议（分点列出）
+            3. 需要立即采取的措施（如有）
+            
+            请用中文以专业但易懂的方式回答：`;
+
+            try {
+                const response = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: "deepseek-r1",
+                        messages: [{ role: "user", content: prompt }],
+                        temperature: 0.7
+                    })
+                });
+
+                const data = await response.json();
+                const content = data.choices[0].message.content;
+                document.getElementById('analysisContent').innerHTML = content.replace(/\n/g, '<br>');
+            } catch (error) {
+                console.error('分析失败:', error);
+                alert('分析失败，请检查网络连接和API密钥！');
+            }
+        }
+
+        // 更新连接状态显示
+        function updateConnectionStatus(connected) {
+            const statusElement = document.getElementById('connectionStatus');
+            statusElement.textContent = connected ? '已连接传感器' : '未连接';
+            statusElement.className = connected ? 'connected' : '';
+        }
+
+        // 初始化事件监听
+        document.getElementById('connectBtn').addEventListener('click', connectSerial);
+        window.addEventListener('load', initSettings);
+    </script>
+</body>
+</html>
